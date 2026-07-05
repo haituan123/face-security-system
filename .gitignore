@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# AI model weights & data (dong bo qua Google Drive, khong push git)
+ai/models/*
+!ai/models/.gitkeep
+ai/dataset/*
+!ai/data/.gitkeep
+*.pt
+*.onnx
+*.h5
+*.pth
+
+# Backend
+backend/storage/snapshots/*
+!backend/storage/snapshots/.gitkeep
+backend/storage/*.db
+.env
+
+# Flutter
+
+# OS
+.DS_Store
