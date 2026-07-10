@@ -136,11 +136,11 @@ def materialize_clean_dataset(
         copy_or_symlink(src, dst, mode=mode)
 
 def main():
-    data_root = Path(r"D:\security_ai_system\data\datasets\raw\VGGFace2")
+    data_root = Path(r"D:\Code\Face recognition security system\ai\dataset\benchmarks\VGG Face 2")
     train_dir = data_root / "train"
     val_dir = data_root / "val"
 
-    out_root = Path(r"D:\security_ai_system\data\datasets\processed\VGGFace2")
+    out_root = Path(r"D:\Code\Face recognition security system\ai\dataset\processed\VGG Face 2")
 
     print("Collecting train samples...")
     train_samples = collect_samples(train_dir, "train")
