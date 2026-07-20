@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Face Security System
 
 Hệ thống giám sát an ninh và nhận dạng khuôn mặt theo mô hình **AI + Backend + Mobile App**.
@@ -237,3 +238,84 @@ Repo đang ở trạng thái:
 - **AI notebook**: có nội dung và pipeline tương đối rõ.
 - **Backend**: có khung, cần triển khai thêm.
 - **Mobile app**: mới ở mức khởi tạo tài liệu / scaffold.
+=======
+# ai/ — AI/ML Pipeline (Face Detection, Recognition, Tracking, Behavior)
+
+## Kiến trúc đã chốt (cascade)
+
+```
+Video frame
+  -> YOLOv8 + ByteTrack        (phat hien & theo doi TOAN BO nguoi trong khung hinh)
+  -> insightface (buffalo_l) tren TUNG CROP nguoi
+       (SCRFD detect + ArcFace embedding trong 1 lan goi, co padding de bat mat nho/o xa)
+  -> so khop cosine similarity voi gallery -> known / unknown
+```
+
+**Lưu ý quan trọng:** ban đầu dự định dùng `retina-face` riêng cho face detection, nhưng đã **bỏ hẳn** vì không tương thích TensorFlow/Keras 3 trên Python 3.13 (xem "Vấn đề môi trường đã gặp" bên dưới). Hiện tại `insightface` (buffalo_l) làm luôn cả detect + embedding trong 1 model pack — không cần TensorFlow nữa.
+
+## Cấu trúc thư mục
+
+```
+ai/
+├── requirements.txt
+├── notebooks/
+│   ├── 01_data_preprocessing.ipynb          - tai LFW, align 112x112 (chuan ArcFace),
+│   │                                            loc chat luong, chia gallery/probe, trich frame video
+│   ├── 02_face_detection_recognition.ipynb  - build gallery embeddings, cascade YOLOv8+ByteTrack
+│   │                                            + insightface, ghi log CSV (co buffer theo track_id)
+│   ├── 03_tracking_behavior.ipynb           - rule-based behavior engine (vung cam, lang vang,
+│   │                                            nguoi la), doc log tu Notebook 02
+│   └── 04_evaluation.ipynb                  - FAR/FRR/EER, danh gia tren WIDER FACE + MOT17
+├── models/
+│   ├── gallery_embeddings.pkl               - gallery embeddings da xay (Notebook 02, Cell 6)
+│   └── yolov8n.pt                           - tu dong tai boi ultralytics lan dau chay
+└── dataset/
+    ├── raw/lfw/<person>/*.jpg                       - anh goc LFW (mo phong gallery)
+    ├── processed/gallery/<person>/*.jpg             - anh da align 112x112, da loc chat luong
+    ├── splits/{gallery,probe}/                      - chia 70/30 theo tung nguoi
+    ├── augmented/                                   - anh gallery da tang cuong (tuy chon)
+    ├── frames/                                      - khung hinh trich tu video test
+    ├── cascade_test_output/                         - video da gan nhan + log CSV (Notebook 02)
+    ├── benchmarks/
+    │   ├── wider face/                              - tai THU CONG tu trang chu WIDER FACE
+    │   └── mot17/                                   - tai THU CONG tu motchallenge.net
+    ├── evaluation_results/                          - ket qua Notebook 04
+    ├── preprocessing_log.csv, split_manifest.csv
+    ├── gallery_build_log.csv, probe_match_results.csv
+    ├── behavior_alerts.csv, dataset_metadata.json
+```
+
+**Lưu ý tên thư mục:** dùng `dataset/` (không phải `data/`) — nếu thấy tài liệu/hướng dẫn cũ nào ghi `ai/data/...`, đó là tên gọi lỗi thời từ lúc thiết kế ban đầu, thực tế đã đổi thành `ai/dataset/...`.
+
+## Setup
+
+```
+cd ai
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+Mở notebook trong VS Code (extension Jupyter), chọn Kernel = Python interpreter của venv vừa tạo.
+
+## Các thông số đã kiểm chứng — KHÔNG đổi nếu chưa có lý do rõ ràng
+
+| Thông số | Giá trị | Lý do |
+|---|---|---|
+| `det_thresh` (insightface) | 0.3 | Mặc định ~0.5 quá chặt cho ảnh crop sát mặt/gần khung hình |
+| `PAD_RATIO` | 0.4 | Ảnh crop sát khiến mặt chiếm gần hết khung hình → detector nhầm out-of-distribution; thêm viền đệm giúp fix (đã kiểm chứng: no_face từ 3021/3023 xuống 0/3023) |
+| `MATCH_THRESHOLD` | 0.35 | Xác nhận qua Notebook 04 (FAR=0.2%, FRR=0.36% trên LFW). **Nhưng match_score trên video thật thấp hơn LFW nhiều** (0.35–0.8 so với 0.7–0.85 trên LFW) — KHÔNG nên nâng threshold cao hơn dù số liệu LFW gợi ý vậy |
+| `BUFFER_SIZE` (Notebook 02) | 10 frame | Quyết định danh tính dựa trên trung bình N lần nhận diện gần nhất của TỪNG `track_id` riêng biệt, thay vì tin 1 frame đơn lẻ (video thật nhiễu hơn ảnh tĩnh nhiều) |
+
+## Vấn đề môi trường đã gặp (đọc trước khi debug lại từ đầu)
+
+1. **`sklearn.fetch_lfw_people()` trả về pixel trong khoảng [0.0, 1.0], KHÔNG phải [0, 255]** — quên nhân `*255.0` trước khi ép kiểu `uint8` sẽ ra ảnh toàn màu đen.
+2. **`retina-face` không chạy được trên Python 3.13 + TensorFlow mới (Keras 3)** — lỗi `ValueError: You have tensorflow X and this requires tf-keras package`, cài `tf-keras` chỉ vá được lớp ngoài, lỗi thật nằm sâu hơn trong cách `retina-face` dựng model. Đã bỏ hẳn, chuyển sang `insightface` cho cả detect và recognition.
+3. **`cv2.imread`/`cv2.imwrite` có thể âm thầm trả về `None`** với đường dẫn chứa ký tự Unicode (tên có dấu, ví dụ `José`) trên Windows — nếu gặp lỗi `AttributeError: 'NoneType' object has no attribute 'shape'`, đây là nghi phạm đầu tiên cần kiểm tra.
+4. **Face detector (SCRFD/RetinaFace) fail gần như 100% trên ảnh crop sát mặt** (như LFW mặc định, hoặc ảnh 112x112 đã align) — do out-of-distribution so với dữ liệu huấn luyện gốc (ảnh cảnh thường, mặt chiếm phần nhỏ khung hình). Đã fix bằng padding + hạ `det_thresh` (xem bảng thông số ở trên).
+
+## Bước tiếp theo có thể làm
+
+- Tách phần logic đã ổn định (align, quality check, embedding, cascade) từ notebook ra module `.py` riêng nếu `backend/` cần dùng lại — hiện `backend/app/services/face_recognition_service.py` đã copy tay logic `get_embedding()`, chưa import trực tiếp từ `ai/`.
+- Notebook 04 Phần B/C (WIDER FACE, MOT17) mặc định chỉ chạy 1 phần nhỏ (200 ảnh / 1 sequence) để tiết kiệm thời gian trên CPU — tăng `N_EVAL_IMAGES` hoặc thêm sequence nếu muốn đánh giá đầy đủ hơn cho báo cáo.
+>>>>>>> 726e467 (Update face recognition project)
