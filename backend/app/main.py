@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 import numpy as np
 from fastapi import FastAPI
 import asyncio
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.services.websocket_manager import manager
 from app.database import Base, SessionLocal, engine
@@ -47,6 +48,14 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Face Security System API", lifespan=lifespan)
+
+#CORS (Cross-Origin Resource Sharing) — mặc định FastAPI từ chối mọi request đến từ origin khác (domain/IP khác với chính nó)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # demo/do an: cho phep tat ca. San xuat that thi gioi han lai domain cu the
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(enrollment.router)
 app.include_router(alerts.router)
